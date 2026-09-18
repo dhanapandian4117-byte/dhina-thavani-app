@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="manifest" href="manifest.json">
+<title>தின தவணை வட்டி கணக்கு</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Noto Sans Tamil",sans-serif;background:#f5f8fc;color:#172033}
+.wrap{max-width:700px;margin:auto;padding:14px}.hero{background:linear-gradient(135deg,#0ea5e9,#7c3aed);color:white;padding:20px;border-radius:20px;margin-bottom:12px}
+h1{font-size:23px;margin:0}.sub{opacity:.9;margin-top:4px}.card{background:#fff;border:1px solid #dce5ef;border-radius:18px;padding:14px;margin:12px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{padding:14px;border-radius:16px}.g{background:#dcfce7}.b{background:#dbeafe}.p{background:#ede9fe}.o{background:#ffedd5}
+label{font-size:14px}input,button{font:inherit}input{width:100%;height:45px;border:1px solid #cbd5e1;border-radius:12px;padding:9px;margin-top:5px;font-size:16px}button{min-height:44px;border:0;border-radius:12px;padding:9px 14px;font-weight:700;cursor:pointer}.primary{background:#0ea5e9;color:white}.success{background:#16a34a;color:white}.danger{background:#e11d48;color:white}.light{background:white;border:1px solid #cbd5e1}.row{display:flex;gap:8px;flex-wrap:wrap}.customer{padding:11px;border:1px solid #e2e8f0;border-radius:14px;margin:8px 0}.between{display:flex;justify-content:space-between;gap:8px;align-items:center}.muted{color:#64748b;font-size:13px}.hidden{display:none}.history{border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px}.receipt{white-space:pre-wrap;background:#f8fafc;padding:12px;border-radius:12px;font-size:14px}
+@media(max-width:500px){.grid{grid-template-columns:1fr}.between{align-items:flex-start}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero"><h1>💰 தின தவணை வட்டி கணக்கு</h1><div class="sub">வாடிக்கையாளர் • தினசரி வசூல் • Database</div></div>
+<div class="stats">
+<div class="stat g">வாடிக்கையாளர்கள்<h2 id="count">0</h2></div>
+<div class="stat b">இன்றைய வசூல்<h2 id="today">₹0</h2></div>
+<div class="stat p">மொத்த வசூல்<h2 id="allpaid">₹0</h2></div>
+<div class="stat o">மொத்த மீதி<h2 id="balance">₹0</h2></div>
+</div>
+
+<div class="card">
+<h3>👤 புதிய வாடிக்கையாளர்</h3>
+<div class="grid">
+<label>பெயர்<input id="name" placeholder="பெயர்"></label>
+<label>மொபைல்<input id="phone" inputmode="tel" placeholder="9876543210"></label>
+<label>அசல் தொகை ₹<input id="principal" type="number" min="0" placeholder="10000"></label>
+<label>வட்டி %<input id="rate" type="number" min="0" step="0.01" placeholder="10"></label>
+<label>தவணை நாட்கள்<input id="days" type="number" min="1" placeholder="100"></label>
+<label>தின தவணை ₹<input id="daily" type="number" min="0" placeholder="110"></label>
+</div>
+<div class="row" style="margin-top:10px"><button class="primary" id="save">💾 சேமிக்க</button><button class="light" id="clear">அழி</button></div>
+<div id="msg" class="muted"></div>
+</div>
+
+<div class="card">
+<h3>📋 வாடிக்கையாளர்கள்</h3>
+<input id="search" placeholder="🔎 பெயர் / மொபைல் தேடுக">
+<div id="list"></div>
+</div>
+
+<div class="card hidden" id="detail"></div>
+
+<div class="card">
+<h3>💾 Backup / Restore</h3>
+<div class="row">
+<button class="primary" id="backup">Backup JSON</button>
+<button class="light" id="restoreBtn">Restore JSON</button>
+<input id="restore" type="file" accept=".json,application/json" class="hidden">
+</div>
+<div class="muted">இந்த போனில் உள்ள Database-ஐ JSON backup ஆக சேமித்து பின்னர் மீண்டும் Restore செய்யலாம்.</div>
+</div>
+</div>
+
+<script>
+const KEY="daily_installment_db_v1";
+let db=JSON.parse(localStorage.getItem(KEY)||'{"customers":[],"payments":[]}');
+const $=id=>document.getElementById(id);
+const money=n=>"₹"+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+function saveDB(){localStorage.setItem(KEY,JSON.stringify(db));}
+function id(){return Date.now()+Math.floor(Math.random()*1000)}
+function calc(c){let interest=c.principal*c.rate/100;return {interest,total:c.principal+interest};}
+function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+function render(){
+ let q=$("search").value.toLowerCase();
+ let today=new Date().toISOString().slice(0,10);
+ let allpaid=db.payments.reduce((a,p)=>a+p.amount,0);
+ let todaypaid=db.payments.filter(p=>p.date===today).reduce((a,p)=>a+p.amount,0);
+ let bal=db.customers.reduce((a,c)=>{let x=calc(c),paid=db.payments.filter(p=>p.customerId===c.id).reduce((s,p)=>s+p.amount,0);return a+Math.max(0,x.total-paid)},0);
+ $("count").textContent=db.customers.length;$("today").textContent=money(todaypaid);$("allpaid").textContent=money(allpaid);$("balance").textContent=money(bal);
+ let cs=db.customers.filter(c=>(c.name+" "+c.phone).toLowerCase().includes(q));
+ $("list").innerHTML=cs.length?cs.map(c=>{let x=calc(c),paid=db.payments.filter(p=>p.customerId===c.id).reduce((s,p)=>s+p.amount,0),b=Math.max(0,x.total-paid);return `<div class="customer"><div class="between"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.phone)} • கடன் ${money(c.principal)}</div><div>மீதி: <b>${money(b)}</b></div></div><button class="primary view" data-id="${c.id}">திறக்க</button></div></div>`}).join(""):"<div class='muted'>வாடிக்கையாளர் இல்லை.</div>";
+ document.querySelectorAll(".view").forEach(b=>b.onclick=()=>detail(+b.dataset.id));
+}
+$("save").onclick=()=>{
+ let name=$("name").value.trim(),phone=$("phone").value.trim(),principal=+$("principal").value,rate=+$("rate").value,days=parseInt($("days").value),daily=+$("daily").value;
+ if(!name||principal<=0||days<=0||daily<0){$("msg").textContent="பெயர், அசல் தொகை, தவணை நாட்களை சரியாக உள்ளிடவும்.";return}
+ db.customers.push({id:id(),name,phone,principal,rate:Math.max(0,rate),days,daily,created:new Date().toISOString()});saveDB();
+ ["name","phone","principal","rate","days","daily"].forEach(x=>$(x).value="");$("msg").textContent="✅ Database-ல் சேமிக்கப்பட்டது.";render();
+};
+$("clear").onclick=()=>{["name","phone","principal","rate","days","daily"].forEach(x=>$(x).value="");$("msg").textContent=""};
+$("search").oninput=render;
+function detail(cid){
+ let c=db.customers.find(x=>x.id===cid);if(!c)return;let x=calc(c),ps=db.payments.filter(p=>p.customerId===cid),paid=ps.reduce((a,p)=>a+p.amount,0),b=Math.max(0,x.total-paid);
+ $("detail").classList.remove("hidden");
+ $("detail").innerHTML=`<div class="between"><h3>👤 ${esc(c.name)}</h3><button class="light" id="close">மூடு</button></div>
+ <div class="grid"><div>அசல்: <b>${money(c.principal)}</b></div><div>வட்டி: <b>${money(x.interest)}</b></div><div>மொத்தம்: <b>${money(x.total)}</b></div><div>செலுத்தியது: <b>${money(paid)}</b></div></div>
+ <div style="margin-top:10px;padding:12px;background:#fee2e2;border-radius:12px;font-size:19px">மீதம்: <b>${money(b)}</b></div>
+ <h4>💵 வசூல் பதிவு</h4><div class="grid"><label>தொகை ₹<input id="payamt" type="number" min="0" value="${c.daily}"></label><label>தேதி<input id="paydate" type="date" value="${new Date().toISOString().slice(0,10)}"></label></div>
+ <div class="row" style="margin-top:10px"><button class="success" id="pay">✅ வசூல் சேமிக்க</button><button class="danger" id="delete">வாடிக்கையாளரை நீக்கு</button></div>
+ <div class="history"><b>வசூல் வரலாறு</b><div id="hist">${ps.length?ps.sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<div>${p.date} — <b>${money(p.amount)}</b></div>`).join(""):"<span class='muted'>பதிவு இல்லை</span>"}</div></div>`;
+ $("close").onclick=()=>$("detail").classList.add("hidden");
+ $("pay").onclick=()=>{let amount=+$("payamt").value,date=$("paydate").value;if(amount<=0||!date)return;db.payments.push({id:id(),customerId:cid,amount,date});saveDB();detail(cid);render();};
+ $("delete").onclick=()=>{if(confirm("இந்த வாடிக்கையாளரை நீக்கவா?")){db.customers=db.customers.filter(x=>x.id!==cid);db.payments=db.payments.filter(p=>p.customerId!==cid);saveDB();$("detail").classList.add("hidden");render();}};
+}
+$("backup").onclick=()=>{let blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="daily-installment-backup.json";a.click();URL.revokeObjectURL(a.href)};
+$("restoreBtn").onclick=()=>$("restore").click();
+$("restore").onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!Array.isArray(x.customers)||!Array.isArray(x.payments))throw 0;db=x;saveDB();render();alert("Restore வெற்றிகரமாக முடிந்தது.");}catch{alert("சரியான Backup JSON இல்லை.");}};r.readAsText(f)};
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+render();
+</script>
+</body>
+</html>
