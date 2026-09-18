@@ -1,0 +1,10 @@
+{
+  "name": "தின தவணை வட்டி கணக்கு",
+  "short_name": "தின தவணை",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f8fc",
+  "theme_color": "#0ea5e9",
+  "lang": "ta",
+  "icons": []
+}
